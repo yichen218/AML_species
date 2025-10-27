@@ -1,4 +1,3 @@
-import argparse
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -53,14 +52,9 @@ def main() -> None:
     base_dir = Path(__file__).resolve().parents[1]
     data_dir = base_dir / "species_data"
 
-    p = argparse.ArgumentParser()
-    p.add_argument("--train", default=str(data_dir / "species_train.npz"))
-    p.add_argument("--test", default=str(data_dir / "species_test.npz"))
-    args = p.parse_args()
-
     # Load raw npz file
-    train_npz = load_train_npz(Path(args.train))
-    test_npz  = load_test_npz(Path(args.test))
+    train_npz = load_train_npz(data_dir / "species_train.npz")
+    test_npz  = load_test_npz(data_dir / "species_test.npz")
 
     # Build dataframes from npz
     train_df = transform_train_df(train_npz)
@@ -73,7 +67,7 @@ def main() -> None:
     # Save
     train_features.to_csv(data_dir / "train_features.csv", index=False)
     test_features.to_csv(data_dir / "test_features.csv", index=False)
-    print("OK")
+    print("Features built")
 
 
 if __name__ == "__main__":

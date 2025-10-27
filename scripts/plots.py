@@ -24,24 +24,37 @@ def plot_hexbin_density(train: pd.DataFrame, out_path: Path) -> None:
     plt.savefig(out_path, bbox_inches="tight"); plt.close()
 
 
-def export_top_species_table_and_bar(train: pd.DataFrame, table_path: Path, fig_path: Path, topk: int = 20) -> None:
-    """Export top-k species table and bar chart"""
-    top = (train[["taxon_id", "taxon_name"]]
-           .dropna(subset=["taxon_id"])
-           .groupby(["taxon_id", "taxon_name"], dropna=False)
-           .size().reset_index(name="count")
-           .sort_values("count", ascending=False).head(topk))
-    table_path.parent.mkdir(parents=True, exist_ok=True)
-    top.to_csv(table_path, index=False)
+def plot_top20_coverage(train: pd.DataFrame, table_path: Path, fig_path: Path, topk: int = 20) -> None:
+    """Export top-k species by spatial coverage (unique grid cells) + bar chart."""
+    # id→name mapping for display (prefer first non-null name)
+    id2name = (train.dropna(subset=["taxon_name"])
+                    .drop_duplicates("taxon_id")
+                    .set_index("taxon_id")["taxon_name"]
+                    .to_dict())
 
-    labels = top.apply(
-        lambda r: str(int(r["taxon_id"])) if pd.isna(r["taxon_name"]) or str(r["taxon_name"]).strip() == ""
-        else str(r["taxon_name"]), axis=1)
+    cov = (train.groupby("taxon_id")["grid_group"]
+           .nunique()
+           .reset_index(name="grid_coverage")
+           .sort_values("grid_coverage", ascending=False)
+           .head(topk))
+
+    cov["taxon_name"] = cov["taxon_id"].map(id2name).fillna("")
+
+    table_path.parent.mkdir(parents=True, exist_ok=True)
+    cov.to_csv(table_path, index=False)
+
+    labels = cov.apply(
+        lambda r: str(int(r["taxon_id"])) if not r["taxon_name"]
+        else (r["taxon_name"] if len(str(r["taxon_name"])) <= 25 else str(r["taxon_name"])[:25] + "…"),
+        axis=1
+    )
+
     fig_path.parent.mkdir(parents=True, exist_ok=True)
     plt.figure(figsize=(10, 6), dpi=120)
-    plt.bar(range(len(top)), top["count"])
-    plt.xticks(range(len(top)), labels, rotation=75, ha="right")
-    plt.ylabel("Observations"); plt.title("Top species by observations")
+    plt.bar(range(len(cov)), cov["grid_coverage"])
+    plt.xticks(range(len(cov)), labels, rotation=75, ha="right")
+    plt.ylabel("Unique grid cells (1°)");
+    plt.title(f"Top species by spatial coverage (topk={topk})")
     plt.tight_layout(); plt.savefig(fig_path, bbox_inches="tight"); plt.close()
 
 
@@ -77,9 +90,9 @@ def plot_latitude_band_counts(train: pd.DataFrame, out_path: Path) -> None:
 def plot_hemisphere_distribution(train: pd.DataFrame, out_path: Path) -> None:
     """Show north vs. south hemisphere share."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    share = train.groupby("hemisphere").size().reset_index(name="n")
+    distribution = train.groupby("hemisphere").size().reset_index(name="n")
     plt.figure(figsize=(6, 4), dpi=120)
-    plt.bar(share["hemisphere"], share["n"])
+    plt.bar(distribution["hemisphere"], distribution["n"])
     plt.xlabel("Hemisphere"); plt.ylabel("Count"); plt.title("Hemisphere distribution")
     plt.savefig(out_path, bbox_inches="tight"); plt.close()
 
@@ -101,10 +114,10 @@ def main() -> None:
 
     plot_global_scatter(train, plot_dir / "train_scatter_global.png")
     plot_hexbin_density(train, plot_dir / "train_hexbin_density.png")
-    export_top_species_table_and_bar(
+    plot_top20_coverage(
         train,
-        plot_dir / "top_species_table.csv",
-        plot_dir / "top_species_counts.png",
+        plot_dir / "top_species_coverage_table.csv",
+        plot_dir / "top_species_coverage.png",
         topk=20,
     )
     plot_latitude_hist(train, plot_dir / "lat_hist.png")

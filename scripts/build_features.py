@@ -33,19 +33,25 @@ def transform_test_df(df_dict: dict) -> pd.DataFrame:
 
 
 def add_geometry_features(df: pd.DataFrame) -> pd.DataFrame:
-    out = df.copy()
-    out["grid_lat"] = np.floor(out["lat"]).astype(int)
-    out["grid_lon"] = np.floor(out["lon"]).astype(int)
-    out["grid_group"] = out["grid_lat"].astype(str) + "_" + out["grid_lon"].astype(str)
-    out["lat_band"] = pd.cut(out["lat"], bins=[-90, -60, -30, 0, 30, 60, 90], include_lowest=True)
-    out["hemisphere"] = np.where(out["lat"] >= 0, "N", "S")
+    df_new = df.copy()
+    df_new["grid_lat"] = np.floor(df_new["lat"]).astype(int)
+    df_new["grid_lon"] = np.floor(df_new["lon"]).astype(int)
+    df_new["grid_group"] = df_new["grid_lat"].astype(str) + "_" + df_new["grid_lon"].astype(str)
+    df_new["lat_band"] = pd.cut(df_new["lat"], bins=[-90, -60, -30, 0, 30, 60, 90], include_lowest=True)
+    df_new["hemisphere"] = np.where(df_new["lat"] >= 0, "N", "S")
 
     rad = np.radians
-    out["sin_lat"] = np.sin(rad(out["lat"]))
-    out["cos_lat"] = np.cos(rad(out["lat"]))
-    out["sin_lon"] = np.sin(rad(out["lon"]))
-    out["cos_lon"] = np.cos(rad(out["lon"]))
-    return out
+    df_new["sin_lat"] = np.sin(rad(df_new["lat"]))
+    df_new["cos_lat"] = np.cos(rad(df_new["lat"]))
+    df_new["sin_lon"] = np.sin(rad(df_new["lon"]))
+    df_new["cos_lon"] = np.cos(rad(df_new["lon"]))
+    return df_new
+
+
+def concat_df(train_df: pd.DataFrame, train_extra_df: pd.DataFrame | None) -> pd.DataFrame:
+    merged = pd.concat([train_df, train_extra_df], axis=0, ignore_index=True)
+    merged = merged.drop_duplicates(subset=["lat", "lon", "taxon_id"]).reset_index(drop=True)
+    return merged
 
 
 def main() -> None:
@@ -54,11 +60,15 @@ def main() -> None:
 
     # Load raw npz file
     train_npz = load_train_npz(data_dir / "species_train.npz")
+    train_extra_npz = load_train_npz(data_dir / "species_train_extra.npz")
     test_npz  = load_test_npz(data_dir / "species_test.npz")
 
     # Build dataframes from npz
     train_df = transform_train_df(train_npz)
+    train_extra_df = transform_train_df(train_extra_npz)
     test_df  = transform_test_df(test_npz)
+
+    train_df = concat_df(train_df, train_extra_df)
 
     # Feature engineering
     train_features = add_geometry_features(train_df)

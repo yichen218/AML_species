@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 
 def load_train_npz(path: Path) -> dict:
+    """Load train data from npz file"""
     d = np.load(path, allow_pickle=True)
     return {
         "train_locs": d["train_locs"],     # [lat, lon]
@@ -13,11 +14,13 @@ def load_train_npz(path: Path) -> dict:
 
 
 def load_test_npz(path: Path) -> dict:
+    """Load test data from npz file"""
     d = np.load(path, allow_pickle=True)
     return {"test_locs": d["test_locs"]}   # [lat, lon]
 
 
 def transform_train_df(df_dict: dict) -> pd.DataFrame:
+    """Transform train data into pandas dataframe"""
     df = pd.DataFrame(df_dict["train_locs"], columns=["lat", "lon"])
     df["taxon_id"] = df_dict["train_ids"].astype(int)
     if df_dict["taxon_names"] is not None:
@@ -29,10 +32,12 @@ def transform_train_df(df_dict: dict) -> pd.DataFrame:
 
 
 def transform_test_df(df_dict: dict) -> pd.DataFrame:
+    """Transform test data into pandas dataframe"""
     return pd.DataFrame(df_dict["test_locs"], columns=["lat", "lon"])
 
 
 def add_geometry_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Add geometry features"""
     df_new = df.copy()
     df_new["grid_lat"] = np.floor(df_new["lat"]).astype(int)
     df_new["grid_lon"] = np.floor(df_new["lon"]).astype(int)
@@ -49,6 +54,7 @@ def add_geometry_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def concat_df(train_df: pd.DataFrame, train_extra_df: pd.DataFrame | None) -> pd.DataFrame:
+    """Concat train and extra train dataframes"""
     merged = pd.concat([train_df, train_extra_df], axis=0, ignore_index=True)
     merged = merged.drop_duplicates(subset=["lat", "lon", "taxon_id"]).reset_index(drop=True)
     return merged
@@ -58,7 +64,7 @@ def main() -> None:
     base_dir = Path(__file__).resolve().parents[1]
     data_dir = base_dir / "species_data"
 
-    # Load raw npz file
+    # Load raw train data from npz file
     train_npz = load_train_npz(data_dir / "species_train.npz")
     train_extra_npz = load_train_npz(data_dir / "species_train_extra.npz")
     test_npz  = load_test_npz(data_dir / "species_test.npz")

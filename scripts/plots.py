@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 def plot_global_distribution(train: pd.DataFrame, out_path: Path) -> None:
-    """Show where observations are globally"""
+    """Show observation's global distribution"""
     out_path.parent.mkdir(parents=True, exist_ok=True)
     plt.figure(figsize=(10, 5), dpi=120)
     plt.scatter(train["lon"], train["lat"], s=1, alpha=0.35)
@@ -13,13 +13,13 @@ def plot_global_distribution(train: pd.DataFrame, out_path: Path) -> None:
     plt.savefig(out_path, bbox_inches="tight"); plt.close()
 
 
-def plot_spatial_hotspots(train: pd.DataFrame, out_path: Path) -> None:
+def plot_hotspots(train: pd.DataFrame, out_path: Path) -> None:
     """Focus on spatial hotspots with density"""
     out_path.parent.mkdir(parents=True, exist_ok=True)
     plt.figure(figsize=(10, 5), dpi=120)
     hb = plt.hexbin(train["lon"], train["lat"], gridsize=80, mincnt=1)
     plt.xlabel("Longitude"); plt.ylabel("Latitude")
-    plt.title("Observation spatial hotspots")
+    plt.title("Observation hotspots")
     cb = plt.colorbar(hb); cb.set_label("Count")
     plt.savefig(out_path, bbox_inches="tight"); plt.close()
 
@@ -80,7 +80,7 @@ def main() -> None:
 
     plot_global_distribution(train, plot_dir / "global_distribution.png")
 
-    plot_spatial_hotspots(train, plot_dir / "spatial_hotspots_density.png")
+    plot_hotspots(train, plot_dir / "spatial_hotspots_density.png")
 
     plot_latitude_distribution(train, plot_dir / "lat_distribution.png")
 
@@ -90,7 +90,7 @@ def main() -> None:
 
     plot_hemisphere_distribution(train, plot_dir / "hemisphere_distribution.png")
 
-    print("Plots build")
+    print("Plots built")
 
 if __name__ == "__main__":
     main()

@@ -46,8 +46,6 @@ def add_geometry_features(df: pd.DataFrame) -> pd.DataFrame:
     df_new["hemisphere"] = np.where(df_new["lat"] >= 0, "N", "S")
 
     rad = np.radians
-    df_new["sin_lat"] = np.sin(rad(df_new["lat"]))
-    df_new["cos_lat"] = np.cos(rad(df_new["lat"]))
     df_new["sin_lon"] = np.sin(rad(df_new["lon"]))
     df_new["cos_lon"] = np.cos(rad(df_new["lon"]))
     return df_new

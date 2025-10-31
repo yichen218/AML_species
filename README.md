@@ -1,7 +1,7 @@
 pip install -r requirements.txt
 python scripts/build\_features.py
 
-
+grid_group only for evaluation, not for training models
 
 
 

@@ -63,29 +63,6 @@ def plot_hemisphere_distribution(train: pd.DataFrame, out_path: Path) -> None:
     plt.savefig(out_path, bbox_inches="tight"); plt.close()
 
 
-def plot_export_grid_overlap(train: pd.DataFrame, test: pd.DataFrame, fig_path: Path, csv_path: Path) -> None:
-    """Compute Train/Test grid overlap"""
-    g_train = set(train["grid_group"].astype(str).unique())
-    g_test  = set(test["grid_group"].astype(str).unique())
-    overlap = g_train & g_test
-
-    stats_df = pd.DataFrame([{
-        "train_grid_n": len(g_train),
-        "test_grid_n": len(g_test),
-        "overlap_n": len(overlap),
-        "overlap_ratio": (len(overlap) / len(g_test)) if len(g_test) else 0.0
-    }])
-
-    csv_path.parent.mkdir(parents=True, exist_ok=True)
-    stats_df.to_csv(csv_path, index=False)
-
-    fig_path.parent.mkdir(parents=True, exist_ok=True)
-    plt.figure(figsize=(6, 4), dpi=120)
-    plt.bar(["train_grid_n", "test_grid_n", "overlap_n"],
-            [stats_df.at[0, "train_grid_n"], stats_df.at[0, "test_grid_n"], stats_df.at[0, "overlap_n"]])
-    plt.title("Train/Test grid overlap"); plt.ylabel("Count")
-    plt.tight_layout(); plt.savefig(fig_path, bbox_inches="tight"); plt.close()
-
 
 # -------------------------------- main --------------------------------
 
@@ -123,9 +100,6 @@ def main() -> None:
 
     # 6. Observations in both hemisphere
     plot_hemisphere_distribution(train, plot_dir / "hemisphere_distribution.png")
-
-    # 7. Grid overlaps in train and test datasets
-    plot_export_grid_overlap(train, test, plot_dir / "train_test_grid_overlap.png", result_dir / "train_test_grid_overlap.csv")
 
     print("Plots built")
 

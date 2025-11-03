@@ -70,18 +70,13 @@ def main() -> None:
     base_dir = Path(__file__).resolve().parents[1]
     data_dir = base_dir / "species_data"
     plot_dir = base_dir / "plots"
-    result_dir = base_dir / "results"
 
     train_path = data_dir / "train_features.csv"
-    test_path = data_dir / "test_features.csv"
 
     if not train_path.exists():
         raise FileNotFoundError(f"Missing file: {train_path}")
     train = pd.read_csv(train_path)
 
-    if not test_path.exists():
-        raise FileNotFoundError(f"Missing file: {test_path}")
-    test = pd.read_csv(test_path)
 
     # 1. Global distribution
     plot_global_distribution(train, plot_dir / "global_distribution.png")

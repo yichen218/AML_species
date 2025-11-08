@@ -8,18 +8,18 @@ def plot_global_distribution(train: pd.DataFrame, path: Path) -> None:
     plt.figure(figsize=(10, 5), dpi=120)
     plt.scatter(train["lon"], train["lat"], s=1, alpha=0.35)
     plt.xlabel("Longitude"); plt.ylabel("Latitude")
-    plt.title("Observation global distribution")
+    plt.title("Global distribution")
     plt.xlim(-180, 180); plt.ylim(-90, 90)
     plt.savefig(path, bbox_inches="tight"); plt.close()
 
 
 def plot_hotspots(train: pd.DataFrame, path: Path) -> None:
-    """Focus on spatial hotspots with density"""
+    """Show hotspots with density"""
     path.parent.mkdir(parents=True, exist_ok=True)
     plt.figure(figsize=(10, 5), dpi=120)
     hb = plt.hexbin(train["lon"], train["lat"], gridsize=80, mincnt=1)
     plt.xlabel("Longitude"); plt.ylabel("Latitude")
-    plt.title("Observation hotspots")
+    plt.title("Hotspots")
     cb = plt.colorbar(hb); cb.set_label("Count")
     plt.savefig(path, bbox_inches="tight"); plt.close()
 
@@ -40,17 +40,6 @@ def plot_longitude_distribution(train: pd.DataFrame, path: Path) -> None:
     plt.hist(train["lon"], bins=60)
     plt.xlabel("Longitude"); plt.ylabel("Count"); plt.title("Longitude distribution")
     plt.savefig(path, bbox_inches="tight"); plt.close()
-
-
-def plot_latitude_band_distribution(train: pd.DataFrame, path: Path) -> None:
-    """Show observation count in each latitude band"""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    band = train.groupby("lat_band").size().reset_index(name="n")
-    plt.figure(figsize=(10, 5), dpi=120)
-    plt.bar(band["lat_band"].astype(str), band["n"])
-    plt.xticks(rotation=45, ha="right"); plt.ylabel("Count")
-    plt.title("Latitude bands")
-    plt.tight_layout(); plt.savefig(path, bbox_inches="tight"); plt.close()
 
 
 def plot_hemisphere_distribution(train: pd.DataFrame, path: Path) -> None:
@@ -89,10 +78,7 @@ def main() -> None:
     # 4. Observations across longitude
     plot_longitude_distribution(train, plot_dir / "lon_distribution.png")
 
-    # 5. Observations in each latitude band
-    plot_latitude_band_distribution(train, plot_dir / "lat_band_distribution.png")
-
-    # 6. Observations in both hemisphere
+    # 5. Observations in both hemisphere
     plot_hemisphere_distribution(train, plot_dir / "hemisphere_distribution.png")
 
     print("Plots built")

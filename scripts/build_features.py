@@ -39,10 +39,9 @@ def build_test_df(df_dict: dict) -> pd.DataFrame:
 def add_geo_features(df: pd.DataFrame) -> pd.DataFrame:
     """Add geometry features"""
     df_0 = df.copy()
-    df_0["grid_lat"] = np.floor(df_0["lat"]).astype(int)
-    df_0["grid_lon"] = np.floor(df_0["lon"]).astype(int)
-    df_0["grid_group"] = df_0["grid_lat"].astype(str) + "_" + df_0["grid_lon"].astype(str)    #1x1 region
-    df_0["lat_band"] = pd.cut(df_0["lat"], bins=[-90, -60, -30, 0, 30, 60, 90], include_lowest=True)
+    df_0["center_lat"] = np.floor(df_0["lat"]).astype(int)
+    df_0["center_lon"] = np.floor(df_0["lon"]).astype(int)
+    df_0["region"] = df_0["center_lat"].astype(str) + "°" + df_0["center_lon"].astype(str)  + "°"  #1x1 region
     df_0["hemisphere"] = np.where(df_0["lat"] >= 0, "N", "S")
 
     rad = np.radians
@@ -50,31 +49,6 @@ def add_geo_features(df: pd.DataFrame) -> pd.DataFrame:
     df_0["cos_lon"] = np.cos(rad(df_0["lon"]))
     return df_0
 
-
-def define_geo_categories():
-    """Define stable categories for lat_band and hemisphere"""
-    lat_bins = [-90, -60, -30, 0, 30, 60, 90]
-    lat_cats = pd.IntervalIndex.from_breaks(lat_bins, closed="right")  # (-90,-60], ..., (60,90]
-    hemi_cats = ["S", "N"]
-    return lat_cats, hemi_cats
-
-
-def normalize_geo_categories(df: pd.DataFrame, lat_cats, hemi_cats) -> pd.DataFrame:
-    """Cast lat_band and hemisphere to fixed categorical domains"""
-    df_1 = df.copy()
-    df_1["hemisphere"] = df_1["hemisphere"].astype(str).str.strip().str.upper()
-    df_1["hemisphere"] = pd.Categorical(df_1["hemisphere"], categories=hemi_cats, ordered=True)
-    df_1["lat_band"] = pd.Categorical(df_1["lat_band"], categories=lat_cats, ordered=True)
-    return df_1
-
-
-def onehot(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
-    """Append OHE columns for lat_band and hemisphere"""
-    df_2 = df.copy()
-    lat_ohe = pd.get_dummies(df_2["lat_band"], prefix="lat_band", dtype=int)
-    hemi_ohe = pd.get_dummies(df_2["hemisphere"], prefix="hemi", dtype=int)
-    df_2 = pd.concat([df_2, lat_ohe, hemi_ohe], axis=1)
-    return df_2, list(lat_ohe.columns) + list(hemi_ohe.columns)
 
 
 def concat_df(train_df: pd.DataFrame, train_extra_df: pd.DataFrame | None) -> pd.DataFrame:
@@ -101,15 +75,6 @@ def main() -> None:
     # Feature engineering
     train_features = add_geo_features(concat_df(train_df, train_extra_df))
     test_features  = add_geo_features(test_df)
-
-    # Normalize categories
-    lat_cats, hemi_cats = define_geo_categories()
-    train_features = normalize_geo_categories(train_features, lat_cats, hemi_cats)
-    test_features = normalize_geo_categories(test_features, lat_cats, hemi_cats)
-
-    # OneHot encoding
-    train_features, ohe_cols = onehot(train_features)
-    test_features, _ = onehot(test_features)
 
 
     train_features.to_csv(data_dir / "train_features.csv", index=False)

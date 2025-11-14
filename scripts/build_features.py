@@ -36,18 +36,18 @@ def build_test_df(df_dict: dict) -> pd.DataFrame:
     return pd.DataFrame(df_dict["test_locs"], columns=["lat", "lon"])
 
 
-def add_geo_features(df: pd.DataFrame) -> pd.DataFrame:
+def add_features(df: pd.DataFrame) -> pd.DataFrame:
     """Add geometry features"""
-    df_0 = df.copy()
-    df_0["center_lat"] = np.floor(df_0["lat"]).astype(int)
-    df_0["center_lon"] = np.floor(df_0["lon"]).astype(int)
-    df_0["region"] = df_0["center_lat"].astype(str) + "°" + df_0["center_lon"].astype(str)  + "°"  #1x1 region
-    df_0["hemisphere"] = np.where(df_0["lat"] >= 0, "N", "S")
+    df0 = df.copy()
+    df0["grid_lat"] = np.floor(df0["lat"]).astype(int)
+    df0["grid_lon"] = np.floor(df0["lon"]).astype(int)
+    df0["region"] = df0["grid_lat"].astype(str) + "°" + df0["grid_lon"].astype(str)  + "°"  #1x1 region
+    df0["hemisphere"] = np.where(df0["lat"] >= 0, "N", "S")
 
     rad = np.radians
-    df_0["sin_lon"] = np.sin(rad(df_0["lon"]))
-    df_0["cos_lon"] = np.cos(rad(df_0["lon"]))
-    return df_0
+    df0["sin_lon"] = np.sin(rad(df0["lon"]))
+    df0["cos_lon"] = np.cos(rad(df0["lon"]))
+    return df0
 
 
 
@@ -73,8 +73,8 @@ def main() -> None:
     test_df  = build_test_df(test_npz)
 
     # Feature engineering
-    train_features = add_geo_features(concat_df(train_df, train_extra_df))
-    test_features  = add_geo_features(test_df)
+    train_features = add_features(concat_df(train_df, train_extra_df))
+    test_features  = add_features(test_df)
 
 
     train_features.to_csv(data_dir / "train_features.csv", index=False)

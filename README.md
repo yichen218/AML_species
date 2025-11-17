@@ -3,7 +3,7 @@
     python scripts/build_features.py
     python scripts/plots.py
     python scripts/mine_cooccurrence.py --train-features species_data/train_features.csv --outdir results/cooccurrence
-    python scripts/train_location_to_species_baseline.py --train-features species_data/train_features.csv --outdir results/location_to_species --topk 50 --cv-splits 5 --seed 42
+    python scripts/train_location_to_species.py --train-features species_data/train_features.csv --outdir results/location_to_species --topk 50 --cv-splits 5 --seed 42
 2. Features:
     taxon_id (int)
     taxon_name (str)

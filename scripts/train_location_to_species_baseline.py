@@ -13,7 +13,7 @@ import joblib
 
 def build_location_to_species_dataset(train_path: str, top_k: int = 50):
     """
-    Build a location → species multi-label dataset from train set
+    Turn train_features.csv into a region-level multi-label dataset
 
     Returns:
         X: location feature matrix
@@ -27,7 +27,7 @@ def build_location_to_species_dataset(train_path: str, top_k: int = 50):
     print("Columns:", train.columns.tolist())
 
     # 1. region -> species_list
-    # Each region corresponds to a list of species ids
+    # Each region corresponds to a list of unique species ids
     region_species = (
         train
         .groupby("region")["taxon_id"]
@@ -47,7 +47,7 @@ def build_location_to_species_dataset(train_path: str, top_k: int = 50):
     )
     print("region_features shape:", region_features.shape)
 
-    # 3. Merge
+    # 3. Merge features and species
     data = region_features.merge(region_species, on="region")
     print("Merged data shape:", data.shape)
 
@@ -66,7 +66,7 @@ def build_location_to_species_dataset(train_path: str, top_k: int = 50):
         lambda lst: [s for s in lst if s in top_species]
     )
 
-    # Filter out regions with no Top-K species
+    # Drop regions with no Top-K species
     data_ml = data[data["species_topk"].apply(len) > 0].reset_index(drop=True)
     print("Number of regions used for multi-label modelling:", data_ml.shape[0])
 
@@ -83,16 +83,14 @@ def build_location_to_species_dataset(train_path: str, top_k: int = 50):
     print("Y shape:", Y.shape)
 
     # 8. Build GroupKFold groups
-    groups = (
-        data_ml["grid_lat"].astype(int) * 1000 + data_ml["grid_lon"].astype(int)
-    )
+    groups = (data_ml["grid_lat"].astype(int) * 1000 + data_ml["grid_lon"].astype(int))
 
     return X, Y, groups, top_species
 
 
 def cross_validation(X, Y, groups, n_splits: int = 5, random_state: int = 42):
     """
-    Run GroupKFold cross-validation with RandomForest and MultiOutputClassifier
+    GroupKFold CV with RandomForest and MultiOutputClassifier
 
     Returns:
         fold_results: list of dicts with per-fold micro/macro F1
@@ -188,7 +186,7 @@ def main():
 
     os.makedirs(args.outdir, exist_ok=True)
 
-    # 1. Build multi-label dataset
+    # 1. Build region-level multi-label dataset
     X, Y, groups, top_species = build_location_to_species_dataset(
         train_path=args.train_features,
         top_k=args.topk,
@@ -209,7 +207,7 @@ def main():
         "macro_f1": macro_mean,
     }
 
-    metrics_path = os.path.join(args.outdir, "multilabel_cv_metrics.csv")
+    metrics_path = os.path.join(args.outdir, "cv_metrics.csv")
     results_df.to_csv(metrics_path, index=False)
     print("Saved CV metrics to:", metrics_path)
 
@@ -228,7 +226,7 @@ def main():
         "top_species": top_species,
     }
 
-    model_path = os.path.join(args.outdir, "loc2spec_rf_model.joblib")
+    model_path = os.path.join(args.outdir, "loc2spec_model.joblib")
     joblib.dump(model_obj, model_path)
     print("Model saved to:", model_path)
 

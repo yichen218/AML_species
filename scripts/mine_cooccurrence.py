@@ -8,17 +8,17 @@ import pandas as pd
 
 def build_region_species(train_path: str):
     """
-    Build region → species from train set
+    Load train_features.csv and build:
 
-    region_species: DataFrame
-    species_name_map: dict mapping taxon_id -> taxon_name
+    - region_species: region with a list of species
+    - species_name_map: taxon_id -> taxon_name
     """
     print(f"Read train features: {train_path}")
     train = pd.read_csv(train_path)
     print("Train set shape:", train.shape)
     print("Columns:", train.columns.tolist())
 
-    # region -> list of species ids
+    # region -> list of unique species ids
     region_species = (
         train
         .groupby("region")["taxon_id"]
@@ -43,11 +43,11 @@ def mine_cooccurrence(region_species: pd.DataFrame,
                       min_species_support: int = 10,
                       min_pair_count: int = 20):
     """
-    Mine species co-occurrence relationships from region_species
+    Find species pairs that often show up in the same regions
 
     Args:
-        min_species_support: minimum number of regions a species must occur into be included
-        min_pair_count: minimum number of shared regions for a species pair to be kept
+        min_species_support: species must appear in at least this number of times to be considered
+        min_pair_count: keep only pairs that co-occur in at least this number of times
     """
     num_regions = region_species.shape[0]
     print("Total regions:", num_regions)
@@ -56,7 +56,7 @@ def mine_cooccurrence(region_species: pd.DataFrame,
     region_species = region_species.reset_index(drop=True)
     region_species["region_id"] = region_species.index
 
-    # Build species -> set of region_ids
+    # Build species -> set of region_ids where it appears
     species_to_regions = defaultdict(set)
 
     for _, row in region_species.iterrows():
@@ -64,11 +64,11 @@ def mine_cooccurrence(region_species: pd.DataFrame,
         for s in row["species_list"]:
             species_to_regions[s].add(rid)
 
-    # Filter out species with low support
+    # Count in how many regions each species appears
     species_support_counts = {s: len(rids) for s, rids in species_to_regions.items()}
-
     print("Total number of species:", len(species_support_counts))
 
+    # Keep species with enough support
     frequent_species = [
         s for s, cnt in species_support_counts.items()
         if cnt >= min_species_support
@@ -138,7 +138,7 @@ def mine_cooccurrence(region_species: pd.DataFrame,
     results_df = pd.DataFrame(results)
     print("Number of co-occurring pairs:", results_df.shape[0])
 
-    # Sort by lift or jaccard so that the strongest co-occurrences appear on top
+    # Sort by lift or jaccard so that the strongest pairs at the top
     results_df = results_df.sort_values(by="lift", ascending=False)
 
     return results_df

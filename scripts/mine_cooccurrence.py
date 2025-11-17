@@ -8,25 +8,26 @@ import pandas as pd
 
 def build_region_species(train_path: str):
     """
-    从 train_features.csv 构造：
-    - region_species: DataFrame，每行一个 region，对应一个物种列表
-    - species_name_map: dict, taxon_id -> taxon_name（方便结果里带名字）
-    """
-    print(f"读取训练特征: {train_path}")
-    train = pd.read_csv(train_path)
-    print("train 形状:", train.shape)
-    print("列名:", train.columns.tolist())
+    Build region → species from train set
 
-    # region -> 物种列表（去重）
+    region_species: DataFrame
+    species_name_map: dict mapping taxon_id -> taxon_name
+    """
+    print(f"Read train features: {train_path}")
+    train = pd.read_csv(train_path)
+    print("Train set shape:", train.shape)
+    print("Columns:", train.columns.tolist())
+
+    # region -> list of species ids
     region_species = (
         train
         .groupby("region")["taxon_id"]
         .apply(lambda x: sorted(set(x)))
         .reset_index(name="species_list")
     )
-    print("region_species 形状:", region_species.shape)
+    print("region_species shape:", region_species.shape)
 
-    # taxon_id -> taxon_name 映射（有的物种可能有多个名字版本，这里随便取一个）
+    # taxon_id -> taxon_name
     species_name_map = (
         train[["taxon_id", "taxon_name"]]
         .drop_duplicates()
@@ -42,21 +43,20 @@ def mine_cooccurrence(region_species: pd.DataFrame,
                       min_species_support: int = 10,
                       min_pair_count: int = 20):
     """
-    基于 region_species 挖掘物种共现关系。
+    Mine species co-occurrence relationships from region_species
 
-    参数：
-    - min_species_support: 一个物种至少出现在多少个 region 中，才参与后续分析
-    - min_pair_count: 两个物种至少在多少个 region 中共同出现，结果才保留
+    Args:
+        min_species_support: minimum number of regions a species must occur into be included
+        min_pair_count: minimum number of shared regions for a species pair to be kept
     """
-    # N = region 个数
     num_regions = region_species.shape[0]
-    print("region 总数:", num_regions)
+    print("Total regions:", num_regions)
 
-    # 给 region_species 增加一个行索引，作为 region_id（0..N-1）
+    # Add region_id
     region_species = region_species.reset_index(drop=True)
     region_species["region_id"] = region_species.index
 
-    # ========= 1. 建立 物种 -> 出现的 region_id 集合 =========
+    # Build species -> set of region_ids
     species_to_regions = defaultdict(set)
 
     for _, row in region_species.iterrows():
@@ -64,28 +64,26 @@ def mine_cooccurrence(region_species: pd.DataFrame,
         for s in row["species_list"]:
             species_to_regions[s].add(rid)
 
-    # ========= 2. 过滤掉支持度太低的物种 =========
+    # Filter out species with low support
     species_support_counts = {s: len(rids) for s, rids in species_to_regions.items()}
 
-    print("物种总数:", len(species_support_counts))
+    print("Total number of species:", len(species_support_counts))
 
     frequent_species = [
         s for s, cnt in species_support_counts.items()
         if cnt >= min_species_support
     ]
     print(
-        f"支持度 >= {min_species_support} 的物种数:",
+        f"Number of species with support >= {min_species_support}:",
         len(frequent_species),
     )
 
-    # 为了后面方便，排序一下（频率从高到低）
     frequent_species.sort(key=lambda s: species_support_counts[s], reverse=True)
 
-    # ========= 3. 枚举物种对，计算共现指标 =========
+    # Enumerate species pairs and compute co-occurrence measures
     results = []
 
     S = len(frequent_species)
-    print("开始枚举物种对，总对数大约:", S * (S - 1) // 2)
 
     for i in range(S):
         a = frequent_species[i]
@@ -97,13 +95,12 @@ def mine_cooccurrence(region_species: pd.DataFrame,
             regions_b = species_to_regions[b]
             n_b = len(regions_b)
 
-            # 交集 = a 和 b 同时出现的 region
+            # Intersection = regions where both a and b appear
             inter = regions_a & regions_b
             n_ab = len(inter)
             if n_ab < min_pair_count:
-                continue  # 共现次数太少，跳过
+                continue
 
-            # 计算各种指标
             union_size = n_a + n_b - n_ab
             if union_size == 0:
                 continue
@@ -114,7 +111,11 @@ def mine_cooccurrence(region_species: pd.DataFrame,
 
             jaccard = n_ab / union_size
             p_a_given_b = n_ab / n_b
-            lift = support_ab / (support_a * support_b) if support_a * support_b > 0 else np.nan
+            lift = (
+                support_ab / (support_a * support_b)
+                if support_a * support_b > 0
+                else np.nan
+            )
 
             results.append(
                 {
@@ -135,9 +136,9 @@ def mine_cooccurrence(region_species: pd.DataFrame,
             )
 
     results_df = pd.DataFrame(results)
-    print("共现对数:", results_df.shape[0])
+    print("Number of co-occurring pairs:", results_df.shape[0])
 
-    # 可以按 lift 或 jaccard 排序，方便查看最强的共现关系
+    # Sort by lift or jaccard so that the strongest co-occurrences appear on top
     results_df = results_df.sort_values(by="lift", ascending=False)
 
     return results_df
@@ -151,25 +152,25 @@ def parse_args():
         "--train-features",
         type=str,
         required=True,
-        help="路径：train_features.csv",
+        help="Path to train_features.csv",
     )
     parser.add_argument(
         "--outdir",
         type=str,
         required=True,
-        help="输出目录，将保存 species_cooccurrence.csv",
+        help="Output directory; will contain species_cooccurrence.csv",
     )
     parser.add_argument(
         "--min-species-support",
         type=int,
         default=10,
-        help="单个物种至少出现在多少个 region 中才纳入分析 (default: 10)",
+        help="Minimum number of regions a species must appear in to be included",
     )
     parser.add_argument(
         "--min-pair-count",
         type=int,
         default=20,
-        help="两个物种至少在多少个 region 中共同出现，才保留这对 (default: 20)",
+        help="Minimum number of regions a species pair must co-occur in to be kept",
     )
     return parser.parse_args()
 
@@ -178,10 +179,10 @@ def main():
     args = parse_args()
     os.makedirs(args.outdir, exist_ok=True)
 
-    # 1. 构造 region -> species_list
+    # 1. Build region -> species_list
     region_species, species_name_map = build_region_species(args.train_features)
 
-    # 2. 共现挖掘
+    # 2. Mine co-occurrence patterns
     results_df = mine_cooccurrence(
         region_species,
         species_name_map,
@@ -189,10 +190,10 @@ def main():
         min_pair_count=args.min_pair_count,
     )
 
-    # 3. 保存结果
+    # 3. Save results
     out_path = os.path.join(args.outdir, "species_cooccurrence.csv")
     results_df.to_csv(out_path, index=False)
-    print("已保存共现结果到:", out_path)
+    print("Results saved to ", out_path)
 
 
 if __name__ == "__main__":

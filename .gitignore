@@ -1,6 +1,6 @@
 species_data/*.csv
-plots/*.png
-results/*.csv
+plots/*
+results/*
 
 __pycache__/
 *.py[cod]

@@ -1,7 +1,6 @@
 import argparse
 import os
 from collections import Counter
-
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import MultiLabelBinarizer
@@ -14,28 +13,30 @@ import joblib
 
 def build_location_to_species_dataset(train_path: str, top_k: int = 50):
     """
-    从 train_features.csv 构造地点→物种的多标签数据集：
-    - X: 地点特征
-    - Y: Top-K 物种的多标签 0/1 矩阵
-    - groups: 用于 GroupKFold 的 group（按 grid_lat, grid_lon 粗略分块）
-    - top_species: Top-K 物种的 taxon_id 列表
-    """
-    print(f"读取训练特征: {train_path}")
-    train = pd.read_csv(train_path)
-    print("train 形状:", train.shape)
-    print("列名:", train.columns.tolist())
+    Build a location → species multi-label dataset from train set
 
-    # ========= 1. region -> species_list =========
-    # 每个 region 对应一个去重后的物种列表
+    Returns:
+        X: location feature matrix
+        Y: multi-label 0/1 matrix for the Top-K species
+        groups: group labels for GroupKFold
+        top_species: list of Top-K taxon_id
+    """
+    print(f"Reading train features from: {train_path}")
+    train = pd.read_csv(train_path)
+    print("Train shape:", train.shape)
+    print("Columns:", train.columns.tolist())
+
+    # 1. region -> species_list
+    # Each region corresponds to a list of species ids
     region_species = (
         train
         .groupby("region")["taxon_id"]
         .apply(lambda x: sorted(set(x)))
         .reset_index(name="species_list")
     )
-    print("region_species 形状:", region_species.shape)
+    print("region_species shape:", region_species.shape)
 
-    # ========= 2. region -> 地点特征 =========
+    # 2. region -> location features
     feature_cols = ["grid_lat", "grid_lon", "sin_lon", "cos_lon", "hemisphere"]
 
     region_features = (
@@ -44,56 +45,59 @@ def build_location_to_species_dataset(train_path: str, top_k: int = 50):
         .first()
         .reset_index()[["region"] + feature_cols]
     )
-    print("region_features 形状:", region_features.shape)
+    print("region_features shape:", region_features.shape)
 
-    # ========= 3. 合并 =========
+    # 3. Merge
     data = region_features.merge(region_species, on="region")
-    print("合并后的 data 形状:", data.shape)
+    print("Merged data shape:", data.shape)
 
-    # ========= 4. 统计物种频次，选 Top-K =========
+    # 4. Count species frequency and select Top-K
     all_species = [s for lst in data["species_list"] for s in lst]
     counter = Counter(all_species)
-    print("不同物种总数:", len(counter))
-    print("出现次数最多的前 10 个物种:", counter.most_common(10))
+    print("Total number of distinct species:", len(counter))
+    print("Top 10 species by frequency:", counter.most_common(10))
 
     top_species = [s for s, _ in counter.most_common(top_k)]
-    print(f"Top-{top_k} 物种数:", len(top_species))
-    print("Top-K 前 10 个:", top_species[:10])
+    print(f"Number of Top-{top_k} species:", len(top_species))
+    print("First 10 in Top-K:", top_species[:10])
 
-    # ========= 5. 只保留 Top-K 物种 =========
+    # 5. Keep Top-K species
     data["species_topk"] = data["species_list"].apply(
         lambda lst: [s for s in lst if s in top_species]
     )
 
-    # 过滤掉不包含任何 Top-K 物种的 region
+    # Filter out regions with no Top-K species
     data_ml = data[data["species_topk"].apply(len) > 0].reset_index(drop=True)
-    print("用于多标签建模的 region 数:", data_ml.shape[0])
+    print("Number of regions used for multi-label modelling:", data_ml.shape[0])
 
-    # ========= 6. 构造特征矩阵 X =========
+    # 6. Build feature matrix X
     X_raw = data_ml[feature_cols]
-    # hemisphere 是字符串类别，做 one-hot
-    X = pd.get_dummies(X_raw, columns=["hemisphere"], drop_first=True)
-    print("X 形状:", X.shape)
 
-    # ========= 7. 构造多标签矩阵 Y =========
+    # One-hot encode hemisphere
+    X = pd.get_dummies(X_raw, columns=["hemisphere"], drop_first=True)
+    print("X shape:", X.shape)
+
+    # 7. Build multi-label matrix Y
     mlb = MultiLabelBinarizer(classes=top_species)
     Y = mlb.fit_transform(data_ml["species_topk"])
-    print("Y 形状:", Y.shape)
+    print("Y shape:", Y.shape)
 
-    # ========= 8. 构造 GroupKFold 的 groups =========
-    # 简单做法：用 (grid_lat, grid_lon) 合成一个 group_id
+    # 8. Build GroupKFold groups
     groups = (
-        data_ml["grid_lat"].astype(int) * 1000
-        + data_ml["grid_lon"].astype(int)
+        data_ml["grid_lat"].astype(int) * 1000 + data_ml["grid_lon"].astype(int)
     )
 
     return X, Y, groups, top_species
 
 
-def cross_val_evaluate_rf(X, Y, groups, n_splits: int = 5, random_state: int = 42):
+def cross_validation(X, Y, groups, n_splits: int = 5, random_state: int = 42):
     """
-    使用 GroupKFold + RandomForest + MultiOutputClassifier 做交叉验证，
-    返回每折的 micro/macro F1 以及整体均值。
+    Run GroupKFold cross-validation with RandomForest and MultiOutputClassifier
+
+    Returns:
+        fold_results: list of dicts with per-fold micro/macro F1
+        micro_mean: mean micro-F1 across folds
+        macro_mean: mean macro-F1 across folds
     """
     gkf = GroupKFold(n_splits=n_splits)
 
@@ -113,7 +117,7 @@ def cross_val_evaluate_rf(X, Y, groups, n_splits: int = 5, random_state: int = 4
         )
         clf = MultiOutputClassifier(base_clf)
 
-        print(f"\n==== 训练 Fold {fold_id} ====")
+        print(f"\n==== Training Fold {fold_id} ====")
         clf.fit(X_train, Y_train)
         Y_pred = clf.predict(X_val)
 
@@ -133,7 +137,7 @@ def cross_val_evaluate_rf(X, Y, groups, n_splits: int = 5, random_state: int = 4
     micro_mean = np.mean([r["micro_f1"] for r in fold_results])
     macro_mean = np.mean([r["macro_f1"] for r in fold_results])
 
-    print("\n==== CV 平均结果 ====")
+    print("\n==== CV mean scores ====")
     print(f"micro F1 mean: {micro_mean:.4f}")
     print(f"macro F1 mean: {macro_mean:.4f}")
 
@@ -142,38 +146,38 @@ def cross_val_evaluate_rf(X, Y, groups, n_splits: int = 5, random_state: int = 4
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Train location-to-species multi-label model with RandomForest"
+        description="Train a location-to-species multi-label RandomForest baseline"
     )
 
     parser.add_argument(
         "--train-features",
         type=str,
         required=True,
-        help="路径：train_features.csv",
+        help="Path to train_features.csv",
     )
     parser.add_argument(
         "--topk",
         type=int,
         default=50,
-        help="使用频次最高的前 K 个物种 (default: 50)",
+        help="Number of most frequent species to keep as labels",
     )
     parser.add_argument(
         "--cv-splits",
         type=int,
         default=5,
-        help="GroupKFold 的折数 (default: 5)",
+        help="Number of GroupKFold splits",
     )
     parser.add_argument(
         "--outdir",
         type=str,
         required=True,
-        help="结果输出目录（会写入 metrics 和 模型）",
+        help="Output directory for metrics and model",
     )
     parser.add_argument(
         "--seed",
         type=int,
         default=42,
-        help="随机种子 (default: 42)",
+        help="Random seed",
     )
 
     return parser.parse_args()
@@ -184,20 +188,20 @@ def main():
 
     os.makedirs(args.outdir, exist_ok=True)
 
-    # 1. 构造多标签数据集
+    # 1. Build multi-label dataset
     X, Y, groups, top_species = build_location_to_species_dataset(
         train_path=args.train_features,
         top_k=args.topk,
     )
 
-    # 2. 交叉验证评估
-    fold_results, micro_mean, macro_mean = cross_val_evaluate_rf(
+    # 2. Cross validation
+    fold_results, micro_mean, macro_mean = cross_validation(
         X, Y, groups,
         n_splits=args.cv_splits,
         random_state=args.seed,
     )
 
-    # 3. 保存 CV 结果到 csv
+    # 3. Save CV results
     results_df = pd.DataFrame(fold_results)
     results_df.loc[len(results_df)] = {
         "fold": "mean",
@@ -207,9 +211,9 @@ def main():
 
     metrics_path = os.path.join(args.outdir, "multilabel_cv_metrics.csv")
     results_df.to_csv(metrics_path, index=False)
-    print("已保存 CV 结果到:", metrics_path)
+    print("Saved CV metrics to:", metrics_path)
 
-    # 4. 用全部数据训练最终模型并保存
+    # 4. Train model
     base_clf = RandomForestClassifier(
         n_estimators=300,
         max_depth=None,
@@ -226,8 +230,8 @@ def main():
 
     model_path = os.path.join(args.outdir, "loc2spec_rf_model.joblib")
     joblib.dump(model_obj, model_path)
-    print("已保存最终模型到:", model_path)
-
+    print("Model saved to:", model_path)
 
 if __name__ == "__main__":
     main()
+

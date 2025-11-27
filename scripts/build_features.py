@@ -1,6 +1,7 @@
 from pathlib import Path
 import numpy as np
 import pandas as pd
+from typing import Optional
 
 def load_train_npz(path: Path) -> dict:
     """Load train data from npz file"""
@@ -51,7 +52,7 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 
-def concat_df(train_df: pd.DataFrame, train_extra_df: pd.DataFrame | None) -> pd.DataFrame:
+def concat_df(train_df: pd.DataFrame, train_extra_df: Optional[pd.DataFrame]) -> pd.DataFrame:
     """Concat train and extra train dataframes"""
     merged = pd.concat([train_df, train_extra_df], axis=0, ignore_index=True)
     merged = merged.drop_duplicates(subset=["lat", "lon", "taxon_id"]).reset_index(drop=True)
